@@ -1,4 +1,3 @@
-# comp6441-project
 # Secure Chat System - User Guide
 
 ## System Overview

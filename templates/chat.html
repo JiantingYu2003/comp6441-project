@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Chat System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            background: rgba(102, 126, 234, 0.1);
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .user-info h3 {
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .logout-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #ff3742;
+            transform: scale(1.05);
+        }
+
+        .online-users {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .online-users h4 {
+            padding: 1rem 1.5rem 0.5rem;
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .user-list {
+            list-style: none;
+        }
+
+        .user-item {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            border-left: 3px solid transparent;
+        }
+
+        .user-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .user-item.active {
+            background: rgba(102, 126, 234, 0.15);
+            border-left-color: #667eea;
+        }
+
+        .user-item .status {
+            width: 8px;
+            height: 8px;
+            background: #2ed573;
+            border-radius: 50%;
+            margin-right: 0.75rem;
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+
+        .chat-header {
+            padding: 1.5rem;
+            background: rgba(102, 126, 234, 0.1);
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .chat-header h2 {
+            color: #333;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .encryption-status {
+            background: #2ed573;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.7rem;
+            margin-left: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .message.sent {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 0.75rem 1rem;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message.received .message-bubble {
+            background: white;
+            border-bottom-left-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .message.sent .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 6px;
+        }
+
+        .message-meta {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-top: 0.25rem;
+        }
+
+        .message-input-area {
+            padding: 1rem;
+            border-top: 1px solid #e0e0e0;
+            background: white;
+        }
+
+        .message-input-container {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-end;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+            min-height: 44px;
+            max-height: 120px;
+            resize: none;
+        }
+
+        .message-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            padding: 0.75rem 1.25rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: #666;
+            padding: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .welcome-message h3 {
+            color: #333;
+            margin-bottom: 1rem;
+        }
+
+        .encryption-info {
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 1rem;
+            font-size: 0.85rem;
+            color: #333;
+        }
+
+        .encryption-info h4 {
+            margin-bottom: 0.5rem;
+            color: #667eea;
+        }
+
+        .header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1.5rem;
+            background: rgba(102, 126, 234, 0.05);
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .clear-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+        }
+
+        .clear-btn:hover {
+            background: #ff5252;
+            transform: scale(1.05);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 250px;
+            }
+            
+            .message-bubble {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="user-info">
+                <h3 id="currentUser">User</h3>
+                <div class="header-controls">
+                    <button id="clearCacheBtn" class="clear-btn" onclick="clearAllCache()">Clear All Cache</button>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </div>
+        <div class="online-users">
+            <h4>Online Users</h4>
+            <ul class="user-list" id="userList">
+                <!-- User list will be dynamically loaded -->
+            </ul>
+        </div>
+    </div>
+
+    <div class="chat-area">
+        <div class="chat-header">
+            <h2 id="chatTitle">
+                Select a user to start chatting
+                <span class="encryption-status" style="display: none;">
+                    End-to-End Encrypted
+                </span>
+            </h2>
+        </div>
+
+        <div class="messages" id="messages">
+            <div class="welcome-message">
+                <h3>Welcome to Secure Chat System</h3>
+                <p>Your messages are protected by end-to-end encryption to ensure privacy and security.</p>
+                <div class="encryption-info">
+                    <h4>Encryption Technology</h4>
+                    <p>• RSA-2048 public key encryption protects AES key exchange</p>
+                    <p>• AES-256-CBC symmetric encryption protects message content</p>
+                    <p>• The server cannot read your message content</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="message-input-area">
+            <div class="message-input-container">
+                <textarea 
+                    class="message-input" 
+                    id="messageInput" 
+                    placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+                    rows="1"
+                    disabled
+                ></textarea>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+                    <span>📤</span>
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = '{{ current_user if current_user else "" }}';
+        let selectedUser = '';
+        let userPublicKeys = {};
+        let messages = [];
+        let decryptedCache = new Map(); // Cache decrypted messages
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUsers();
+            loadMessages();
+            // Reduce API request frequency to avoid performance issues
+            setInterval(loadUsers, 10000);    // User list refresh every 10 seconds is enough
+            setInterval(loadMessages, 5000);  // Message refresh every 5 seconds
+            
+            // Message input events
+            const messageInput = document.getElementById('messageInput');
+            messageInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+        });
+
+        async function loadUsers() {
+            try {
+                const response = await fetch('/users');
+                const data = await response.json();
+                
+                if (data.users) {
+                    const userList = document.getElementById('userList');
+                    userList.innerHTML = '';
+                    
+                    for (const user of data.users) {
+                        const li = document.createElement('li');
+                        li.className = 'user-item';
+                        if (user === selectedUser) {
+                            li.classList.add('active');
+                        }
+                        li.innerHTML = `
+                            <div class="status"></div>
+                            <span>${user}</span>
+                        `;
+                        li.onclick = () => selectUser(user);
+                        userList.appendChild(li);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load user list:', error);
+            }
+        }
+
+        async function selectUser(username) {
+            selectedUser = username;
+            
+            // Update UI
+            document.querySelectorAll('.user-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            document.getElementById('chatTitle').innerHTML = `
+                Chat with ${username}
+                <span class="encryption-status">
+                    🔐 Base64+RSA+AES Encrypted
+                </span>
+            `;
+            
+            // Enable input
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('messageInput').placeholder = `Send message to ${username}...`;
+            document.getElementById('sendBtn').disabled = false;
+            
+            // Load messages
+            await loadMessages();
+        }
+
+        async function getUserPublicKey(username) {
+            try {
+                const response = await fetch(`/public_key/${username}`);
+                const data = await response.json();
+                if (data.public_key) {
+                    userPublicKeys[username] = data.public_key;
+                }
+            } catch (error) {
+                console.error('Failed to get public key:', error);
+            }
+        }
+
+        function generateAESKey() {
+            return CryptoJS.lib.WordArray.random(256/8);
+        }
+
+        function encryptWithAES(key, message) {
+            // Mimic Python implementation for complete compatibility
+            const iv = CryptoJS.lib.WordArray.random(128/8);
+            
+            // Manual padding, consistent with Python
+            const messageBytes = CryptoJS.enc.Utf8.parse(message);
+            const padLength = 16 - (messageBytes.sigBytes % 16);
+            const padding = CryptoJS.lib.WordArray.create(new Array(padLength).fill(padLength));
+            const paddedMessage = messageBytes.concat(padding);
+            
+            // Use low-level API for encryption, consistent with Python approach
+            const encrypted = CryptoJS.AES.encrypt(paddedMessage, key, {
+                iv: iv,
+                mode: CryptoJS.mode.CBC,
+                padding: CryptoJS.pad.NoPadding // We've already manually padded
+            });
+            
+            // Combine IV + encrypted data, consistent with Python format
+            const combined = iv.concat(encrypted.ciphertext);
+            return CryptoJS.enc.Base64.stringify(combined);
+        }
+
+        function decryptWithAES(key, encryptedMessage) {
+            // Mimic Python decryption method for complete compatibility
+            const combined = CryptoJS.enc.Base64.parse(encryptedMessage);
+            const iv = CryptoJS.lib.WordArray.create(combined.words.slice(0, 4));
+            const ciphertext = CryptoJS.lib.WordArray.create(combined.words.slice(4));
+            
+            // Use NoPadding for decryption, then manually remove padding
+            const decrypted = CryptoJS.AES.decrypt(
+                CryptoJS.lib.CipherParams.create({ ciphertext: ciphertext }), 
+                key, 
+                { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.NoPadding }
+            );
+            
+            // Manually remove padding, consistent with Python approach
+            const decryptedBytes = new Uint8Array(decrypted.sigBytes);
+            for (let i = 0; i < decrypted.sigBytes; i++) {
+                decryptedBytes[i] = (decrypted.words[Math.floor(i / 4)] >>> (24 - (i % 4) * 8)) & 0xff;
+            }
+            
+            // Remove padding
+            const padLength = decryptedBytes[decryptedBytes.length - 1];
+            const unpadded = decryptedBytes.slice(0, -padLength);
+            
+            // Convert to UTF-8 string
+            return new TextDecoder('utf-8').decode(unpadded);
+        }
+
+        function encryptWithRSA(publicKeyPem, message) {
+            const publicKey = forge.pki.publicKeyFromPem(publicKeyPem);
+            const encrypted = publicKey.encrypt(message, 'RSA-OAEP', {
+                md: forge.md.sha256.create(),
+                mgf1: forge.mgf.mgf1.create(forge.md.sha256.create())
+            });
+            return forge.util.encode64(encrypted);
+        }
+
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (!message || !selectedUser) return;
+            
+            try {
+                console.log('📤 Sending message:', message, 'from', currentUser, 'to', selectedUser);
+                
+                
+                const encodedMessage = btoa(unescape(encodeURIComponent(message))); 
+                console.log('🔒 Message encoded for transmission');
+                
+                const response = await fetch('/send_message', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        to_user: selectedUser,
+                        message: encodedMessage,  
+                        is_encoded: true        
+                    })
+                });
+                
+                const result = await response.json();
+                console.log('Response:', result);
+                
+                if (result.status === 'success') {
+                    console.log('✅ Message sent successfully!');
+                    messageInput.value = '';
+                    messageInput.style.height = 'auto';
+                    loadMessages();
+                } else {
+                    console.error('Send failed:', result.message);
+                    alert('Send failed: ' + result.message);
+                }
+                
+            } catch (error) {
+                console.error('❌ Send error:', error);
+                alert('Send failed: ' + error.message);
+            }
+        }
+
+        async function loadMessages() {
+            try {
+                console.log('📥 Loading messages...');
+                
+                const response = await fetch('/messages');
+                const data = await response.json();
+                
+                console.log('Got messages:', data.messages?.length || 0);
+                
+                if (data.messages) {
+                    displayMessages(data.messages);
+                } else {
+                    displayMessages([]);
+                }
+                
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+            }
+        }
+
+        async function decryptMessage(encryptedAESKey, encryptedMessage) {
+            try {
+                const response = await fetch('/decrypt_message', {
+                method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        encrypted_aes_key: encryptedAESKey,
+                        encrypted_message: encryptedMessage
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.status === 'success') {
+                    return result.message;
+                } else {
+                    console.error('Decryption failed details:', result);
+                    if (result.details) {
+                        console.error('Python error stack:', result.details);
+                    }
+                    return `[Decryption failed: ${result.message}]`;
+                }
+            } catch (error) {
+                console.error('Failed to decrypt message:', error);
+                return '[Network error]';
+            }
+        }
+
+        async function displayMessages(messageList) {
+            const messagesContainer = document.getElementById('messages');
+            
+            if (!selectedUser) {
+                messagesContainer.innerHTML = `
+                    <div class="welcome-message">
+                        <h3>Welcome to Secure Chat System</h3>
+                        <p>Your messages are protected by end-to-end encryption to ensure privacy and security.</p>
+                        <div class="encryption-info">
+                            <h4>Encryption Technology</h4>
+                            <p>• RSA-2048 public key encryption protects AES key exchange</p>
+                            <p>• AES-256-CBC symmetric encryption protects message content</p>
+                            <p>• The server cannot read your message content</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Get current username (if not available yet)
+            if (!currentUser) {
+                try {
+                    const userResponse = await fetch('/current_user');
+                    const userData = await userResponse.json();
+                    if (userData.username) {
+                        currentUser = userData.username;
+                    }
+                } catch (error) {
+                    console.error('Failed to get current user:', error);
+                }
+            }
+            
+            // Filter messages for current conversation
+            const currentChat = messageList.filter(msg => 
+                (msg.from_user === selectedUser && msg.to_user === currentUser) || 
+                (msg.from_user === currentUser && msg.to_user === selectedUser)
+            );
+            
+            messagesContainer.innerHTML = '';
+            
+            for (const msg of currentChat) {
+                const messageDiv = document.createElement('div');
+                // Correct message ownership determination: received messages are sent to current user
+                const isReceived = msg.to_user === currentUser;
+                messageDiv.className = `message ${isReceived ? 'received' : 'sent'}`;
+                
+                // Backend has already decrypted the message, use directly
+                const messageText = msg.message || '[Message loading failed]';
+                
+                const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                messageDiv.innerHTML = `
+                    <div class="message-bubble">
+                        <div class="message-content">${messageText}</div>
+                        <div class="message-meta">${timestamp}</div>
+                    </div>
+                `;
+                
+                messagesContainer.appendChild(messageDiv);
+            }
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        async function clearAllCache() {
+            if (confirm('🧹 This will clear ALL data and cache. You will need to register again. Continue?')) {
+                try {
+                    // Clear server data
+                    await fetch('/clear_all', { method: 'POST' });
+                    
+                    // Clear browser cache
+                    if ('caches' in window) {
+                        const cacheNames = await caches.keys();
+                        await Promise.all(
+                            cacheNames.map(name => caches.delete(name))
+                        );
+                    }
+                    
+                    // Clear local storage
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    
+                    alert('✅ All cache cleared! Page will reload...');
+                    window.location.href = '/';
+                    
+                } catch (error) {
+                    console.error('Cache clear failed:', error);
+                    alert('Cache clear failed. Please manually refresh and use incognito mode.');
+                }
+            }
+        }
+
+        function logout() {
+            try {
+                window.location.href = '/logout';
+            } catch (error) {
+                console.error('Logout failed:', error);
+                window.location.href = '/';
+            }
+        }
+
+        // Get current user information
+        (async function() {
+            try {
+                if (!currentUser) {
+                    const response = await fetch('/current_user');
+                    const data = await response.json();
+                    if (data.username) {
+                        currentUser = data.username;
+                    }
+                }
+                // Update sidebar username display
+                if (currentUser) {
+                    document.getElementById('currentUser').textContent = currentUser;
+                }
+            } catch (error) {
+                console.error('Failed to get user information:', error);
+            }
+        })();
+    </script>
+</body>
+</html>
